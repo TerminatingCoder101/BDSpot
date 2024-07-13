@@ -50,6 +50,7 @@ def segment_setting(config):
     verify_estop(robot)
 
     lease_client = robot.ensure_client(bosdyn.client.lease.LeaseClient.default_service_name)
+
     image_client = robot.ensure_client(ImageClient.default_service_name)
 
     manipulation_api_client = robot.ensure_client(ManipulationApiClient.default_service_name)
