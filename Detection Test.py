@@ -119,10 +119,6 @@ def segment_setting(config):
         plt.show()
         
         _, black_white = cv2.threshold(gray_img, 1, 255, cv2.THRESH_BINARY)
-        
-        plt.title("Binary Image")
-        plt.imshow(black_white, cmap='gray')
-        plt.show()
 
         # Normalize the image to range [0, 1] for skeletonization
         black_white_norm = black_white // 255
@@ -130,7 +126,8 @@ def segment_setting(config):
         skel_img = skeletonize(black_white_norm).astype(np.uint8)
 
         dilated_skeleton = dilation(skel_img, square(3))
-        cv2.imshow(dilated_skeleton)
+        cv2.imshow('Original', image_cv)
+        cv2.imshow('Final', dilated_skeleton)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
