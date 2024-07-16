@@ -6,7 +6,6 @@ import cv2
 import numpy as np
 from skimage.morphology import skeletonize, dilation, square
 from skimage import data
-from matplotlib import pyplot as plt
 
 import bosdyn.client
 import bosdyn.client.estop
@@ -110,13 +109,7 @@ def segment_setting(config):
 
         result_image = cv2.bitwise_and(img, img, mask=mask_red)
 
-        # Convert mask_red to a format compatible with cvtColor
-        plt.imshow(cv2.cvtColor(result_image, cv2.COLOR_BGR2RGB))
-        plt.show()
-
         gray_img = cv2.cvtColor(result_image, cv2.COLOR_RGB2GRAY)
-        plt.imshow(gray_img, cmap='gray')
-        plt.show()
         
         _, black_white = cv2.threshold(gray_img, 1, 255, cv2.THRESH_BINARY)
 
