@@ -1,11 +1,5 @@
-# Copyright (c) 2023 Boston Dynamics, Inc.  All rights reserved.
-#
-# Downloading, reproducing, distributing or otherwise using the SDK Software
-# is subject to the terms and conditions of the Boston Dynamics Software
-# Development Kit License (20191101-BDSDK-SL).
+# Copyright (c) Air Force Research Lab 2024.  All rights reserved.
 
-"""Tutorial to show how to use Spot's arm.
-"""
 import argparse
 import sys
 import time
@@ -52,12 +46,10 @@ def verify_estop(robot):
         raise Exception(error_message)
 
 def arm_object_grasp(config):
-    """A simple example of using the Boston Dynamics API to command Spot's arm."""
 
-    # See hello_spot.py for an explanation of these lines.
     bosdyn.client.util.setup_logging(config.verbose)
 
-    sdk = bosdyn.client.create_standard_sdk('ArmObjectGraspClient')
+    sdk = bosdyn.client.create_standard_sdk('RibbonCupClient')
     robot = sdk.create_robot(config.hostname)
     bosdyn.client.util.authenticate(robot)
     robot.time_sync.wait_for_sync()
