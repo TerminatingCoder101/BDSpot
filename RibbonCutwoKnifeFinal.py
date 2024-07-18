@@ -7,7 +7,6 @@ import time
 import cv2
 import numpy as np
 
-
 import bosdyn.client
 import bosdyn.client.estop
 import bosdyn.client.lease
@@ -20,13 +19,6 @@ from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder, blocking_stand, block_until_arm_arrives
 from bosdyn.client.robot_state import RobotStateClient
 
-ROTATION_ANGLE = {
-    'back_fisheye_image': 0,
-    'frontleft_fisheye_image': -78,
-    'frontright_fisheye_image': -102,
-    'left_fisheye_image': 0,
-    'right_fisheye_image': 180
-}
 
 def pixel_format_type_strings():
     names = image_pb2.Image.PixelFormat.keys()
@@ -45,14 +37,8 @@ def verify_estop(robot):
         robot.logger.error(error_message)
         raise Exception(error_message)
 
-def arm_object_grasp(config):
-
+def arm_object_grasp(config, robot, command_client, robot_state_client):
     bosdyn.client.util.setup_logging(config.verbose)
-
-    sdk = bosdyn.client.create_standard_sdk('RibbonCupClient')
-    robot = sdk.create_robot(config.hostname)
-    bosdyn.client.util.authenticate(robot)
-    robot.time_sync.wait_for_sync()
 
     assert robot.has_arm(), 'Robot requires an arm to run this example.'
 
@@ -61,131 +47,105 @@ def arm_object_grasp(config):
     verify_estop(robot)
 
     lease_client = robot.ensure_client(bosdyn.client.lease.LeaseClient.default_service_name)
-    robot_state_client = robot.ensure_client(RobotStateClient.default_service_name)
+    
     image_client = robot.ensure_client(ImageClient.default_service_name)
 
     manipulation_api_client = robot.ensure_client(ManipulationApiClient.default_service_name)
 
-    with bosdyn.client.lease.LeaseKeepAlive(lease_client, must_acquire=True, return_at_exit=True):
-        # Now, we are ready to power on the robot. This call will block until the power
-        # is on. Commands would fail if this did not happen. We can also check that the robot is
-        # powered at any point.
-        robot.logger.info('Powering on robot... This may take a several seconds.')
-        robot.power_on(timeout_sec=20)
-        assert robot.is_powered_on(), 'Robot power on failed.'
-        robot.logger.info('Robot powered on.')
+    # Take a picture with a camera
+    robot.logger.info('Getting an image from: %s', config.image_sources)
+    if config.image_sources:
+        # Capture and save images to disk
+        pixel_format = pixel_format_string_to_enum(config.pixel_format)
+        image_request = [
+            build_image_request(source, pixel_format=pixel_format)
+            for source in config.image_sources
+        ]
+        image_responses = image_client.get_image(image_request)
 
-        # Tell the robot to stand up. The command service is used to issue commands to a robot.
-        # The set of valid commands for a robot depends on hardware configuration. See
-        # RobotCommandBuilder for more detailed examples on command building. The robot
-        # command service requires timesync between the robot and the client.
-        robot.logger.info('Commanding robot to stand...')
-        command_client = robot.ensure_client(RobotCommandClient.default_service_name)
-        blocking_stand(command_client, timeout_sec=10)
-        robot.logger.info('Robot standing.')
+        image = image_responses[0]
+        
+        num_bytes = 1  # Assume a default of 1 byte encodings.
+        if image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_DEPTH_U16:
+            dtype = np.uint16
+            extension = '.png'
+        else:
+            if image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_RGB_U8:
+                num_bytes = 3
+            elif image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_RGBA_U8:
+                num_bytes = 4
+            elif image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8:
+                num_bytes = 1
+            elif image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U16:
+                num_bytes = 2
+            dtype = np.uint8
+            extension = '.jpg'
 
-        # Take a picture with a camera
-        robot.logger.info('Getting an image from: %s', config.image_sources)
-        if config.image_sources:
-            # Capture and save images to disk
-            pixel_format = pixel_format_string_to_enum(config.pixel_format)
-            image_request = [
-                build_image_request(source, pixel_format=pixel_format)
-                for source in config.image_sources
-            ]
-            image_responses = image_client.get_image(image_request)
+        img = np.frombuffer(image.shot.image.data, dtype=dtype)
 
-            image = image_responses[0]
-            
-            num_bytes = 1  # Assume a default of 1 byte encodings.
-            if image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_DEPTH_U16:
-                dtype = np.uint16
-                extension = '.png'
-            else:
-                if image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_RGB_U8:
-                    num_bytes = 3
-                elif image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_RGBA_U8:
-                    num_bytes = 4
-                elif image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U8:
-                    num_bytes = 1
-                elif image.shot.image.pixel_format == image_pb2.Image.PIXEL_FORMAT_GREYSCALE_U16:
-                    num_bytes = 2
-                dtype = np.uint8
-                extension = '.jpg'
-
-            img = np.frombuffer(image.shot.image.data, dtype=dtype)
-
-            if image.shot.image.format == image_pb2.Image.FORMAT_RAW:
-                try:
-                    # Attempt to reshape array into an RGB rows X cols shape.
-                    img = img.reshape((image.shot.image.rows, image.shot.image.cols, num_bytes))
-                except ValueError:
-                    # Unable to reshape the image data, trying a regular decode.
-                    img = cv2.imdecode(img, -1)
-            else:
+        if image.shot.image.format == image_pb2.Image.FORMAT_RAW:
+            try:
+                # Attempt to reshape array into an RGB rows X cols shape.
+                img = img.reshape((image.shot.image.rows, image.shot.image.cols, num_bytes))
+            except ValueError:
+                # Unable to reshape the image data, trying a regular decode.
                 img = cv2.imdecode(img, -1)
+        else:
+            img = cv2.imdecode(img, -1)
 
-        x_coord, y_coord = segmentation_processing(img,extension)
+    x_coord, y_coord = segmentation_processing(img,extension)
 
-        robot.logger.info(
-            f'Picking object at image location ({x_coord}, {y_coord})')
-        robot.logger.info('Picking object at image location (%s, %s)', x_coord, y_coord)
+    robot.logger.info(
+        f'Picking object at image location ({x_coord}, {y_coord})')
+    robot.logger.info('Picking object at image location (%s, %s)', x_coord, y_coord)
 
-        pick_vec = geometry_pb2.Vec2(x= x_coord, y= y_coord)
+    pick_vec = geometry_pb2.Vec2(x= x_coord, y= y_coord)
 
-        # Build the proto
-        grasp = manipulation_api_pb2.PickObjectInImage(
-            pixel_xy=pick_vec, transforms_snapshot_for_camera=image.shot.transforms_snapshot,
-            frame_name_image_sensor=image.shot.frame_name_image_sensor,
-            camera_model=image.source.pinhole)
+    # Build the proto
+    grasp = manipulation_api_pb2.PickObjectInImage(
+        pixel_xy=pick_vec, transforms_snapshot_for_camera=image.shot.transforms_snapshot,
+        frame_name_image_sensor=image.shot.frame_name_image_sensor,
+        camera_model=image.source.pinhole)
 
-        # Optionally add a grasp constraint.  This lets you tell the robot you only want top-down grasps or side-on grasps.
-        add_grasp_constraint(config, grasp, robot_state_client)
+    # Optionally add a grasp constraint.  This lets you tell the robot you only want top-down grasps or side-on grasps.
+    add_grasp_constraint(config, grasp, robot_state_client)
 
-        # Ask the robot to pick up the object
-        grasp_request = manipulation_api_pb2.ManipulationApiRequest(pick_object_in_image=grasp)
+    # Ask the robot to pick up the object
+    grasp_request = manipulation_api_pb2.ManipulationApiRequest(pick_object_in_image=grasp)
+
+    # Send the request
+    cmd_response = manipulation_api_client.manipulation_api_command(
+        manipulation_api_request=grasp_request)
+
+    # Get feedback from the robot
+    while True:
+        feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
+            manipulation_cmd_id=cmd_response.manipulation_cmd_id)
 
         # Send the request
-        cmd_response = manipulation_api_client.manipulation_api_command(
-            manipulation_api_request=grasp_request)
+        response = manipulation_api_client.manipulation_api_feedback_command(
+            manipulation_api_feedback_request=feedback_request)
 
-        # Get feedback from the robot
-        while True:
-            feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
-                manipulation_cmd_id=cmd_response.manipulation_cmd_id)
+        print(
+            f'Current state: {manipulation_api_pb2.ManipulationFeedbackState.Name(response.current_state)}'
+        )
 
-            # Send the request
-            response = manipulation_api_client.manipulation_api_feedback_command(
-                manipulation_api_feedback_request=feedback_request)
+        if response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED or response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_FAILED:
+            break
 
-            print(
-                f'Current state: {manipulation_api_pb2.ManipulationFeedbackState.Name(response.current_state)}'
-            )
+        time.sleep(0.25)
 
-            if response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED or response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_FAILED:
-                break
+    robot.logger.info('Finished grasp.')
 
-            time.sleep(0.25)
+    stow = RobotCommandBuilder.arm_stow_command()
 
-        robot.logger.info('Finished grasp.')
+    # Issue the command via the RobotCommandClient
+    stow_command_id = command_client.robot_command(stow)
 
-        stow = RobotCommandBuilder.arm_stow_command()
+    robot.logger.info('Stow command issued.')
+    block_until_arm_arrives(command_client, stow_command_id, 3.0)
 
-        # Issue the command via the RobotCommandClient
-        stow_command_id = command_client.robot_command(stow)
-
-        robot.logger.info('Stow command issued.')
-        block_until_arm_arrives(command_client, stow_command_id, 3.0)
-
-        time.sleep(4.0)
-
-        robot.logger.info('Sitting down and turning off.')
-
-        # Power the robot off. By specifying "cut_immediately=False", a safe power off command
-        # is issued to the robot. This will attempt to sit the robot before powering off.
-        robot.power_off(cut_immediately=False, timeout_sec=20)
-        assert not robot.is_powered_on(), 'Robot power off failed.'
-        robot.logger.info('Robot safely powered off.')
+    time.sleep(4.0)
 
 
 def add_grasp_constraint(config, grasp, robot_state_client):
@@ -326,30 +286,7 @@ def segmentation_processing(img, extension):
     return center_x, center_y
 
 
-def main():
-    """Command line interface."""
-    parser = argparse.ArgumentParser()
-    bosdyn.client.util.add_base_arguments(parser)
-    parser.add_argument('--auto-rotate', help='rotate right and front images to be upright',
-                        action='store_true')
-    parser.add_argument('--image-sources',
-                        help='Get image from source(s)', action='append')
-    parser.add_argument(
-        '--pixel-format', choices=pixel_format_type_strings(),
-        help='Requested pixel format of image. If supplied, will be used for all sources.')
-    parser.add_argument('-t', '--force-top-down-grasp',
-                        help='Force the robot to use a top-down grasp (vector_alignment demo)',
-                        action='store_true')
-    parser.add_argument('-f', '--force-horizontal-grasp',
-                        help='Force the robot to use a horizontal grasp (vector_alignment demo)',
-                        action='store_true')
-    parser.add_argument('-r', '--force-45-angle-grasp',
-                        help='Force the robot to use a 45 degree angled down grasp (rotation_with_tolerance demo)',
-                        action='store_true')
-    parser.add_argument('-s', '--force-squeeze-grasp',
-                        help='Force the robot to use a squeeze grasp', action='store_true')
-    options = parser.parse_args()
-
+def main_ribbon(options, ):
     num = 0
     if options.force_top_down_grasp:
         num += 1
@@ -371,12 +308,3 @@ def main():
         logger = bosdyn.client.util.get_logger()
         logger.exception('Threw an exception')
         return False
-
-
-if __name__ == '__main__':
-
-    sys.argv = ['Test1.py', '--image-sources', 'hand_color_image',
-            '--pixel-format', 'PIXEL_FORMAT_RGB_U8','--force-45-angle-grasp','-r', '192.168.80.3']
-
-    if not main():
-        sys.exit(1)
