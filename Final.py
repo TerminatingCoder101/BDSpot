@@ -152,12 +152,8 @@ def main(argv):
 
 if __name__ == '__main__':
 
-    sys.argv = []
-
-    sys.argv = ['Final.py', '--image-sources', 'hand_color_image', '--walk_directory','C:\\Users\\chapmanm\\Downloads\\Ribbon walk.walk','--walk_filename','start from dock to door.walk',
+    sys.argv = ['Final.py', '--image-sources', 'hand_color_image', '--walk_directory','C:\\Users\\chapmanm\\Downloads\\Ribbon walk.walk','--walk_filename','Ribbon walk.walk',
             '--pixel-format', 'PIXEL_FORMAT_RGB_U8','--force-45-angle-grasp','-r', '192.168.80.3']
-
-
 
     print(sys.argv)
     if not main(sys.argv[1:]):
