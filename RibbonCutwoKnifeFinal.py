@@ -1,3 +1,9 @@
+'''
+Created  July 19, 2024
+Air Force Research Lab CAMS Labratory
+@author: Sagar Shah and Dr. Mike Chapman
+'''
+
 # Copyright (c) Air Force Research Lab 2024.  All rights reserved.
 
 import argparse
@@ -42,15 +48,11 @@ def arm_object_grasp(config, robot, command_client, robot_state_client):
 
     assert robot.has_arm(), 'Robot requires an arm to run this example.'
 
-    # Verify the robot is not estopped and that an external application has registered and holds
-    # an estop endpoint.
-    verify_estop(robot)
 
-    lease_client = robot.ensure_client(bosdyn.client.lease.LeaseClient.default_service_name)
-    
     image_client = robot.ensure_client(ImageClient.default_service_name)
 
     manipulation_api_client = robot.ensure_client(ManipulationApiClient.default_service_name)
+    
 
     # Take a picture with a camera
     robot.logger.info('Getting an image from: %s', config.image_sources)
@@ -145,7 +147,7 @@ def arm_object_grasp(config, robot, command_client, robot_state_client):
     robot.logger.info('Stow command issued.')
     block_until_arm_arrives(command_client, stow_command_id, 3.0)
 
-    time.sleep(4.0)
+    time.sleep(1.0)
 
 
 def add_grasp_constraint(config, grasp, robot_state_client):
@@ -286,7 +288,7 @@ def segmentation_processing(img, extension):
     return center_x, center_y
 
 
-def main_ribbon(options, ):
+def main_ribbon(options,robot,command_client, robot_state_client ):
     num = 0
     if options.force_top_down_grasp:
         num += 1
@@ -302,7 +304,7 @@ def main_ribbon(options, ):
         sys.exit(1)
 
     try:
-        arm_object_grasp(options)
+        arm_object_grasp(options, robot, command_client, robot_state_client)
         return True
     except Exception as exc:  # pylint: disable=broad-except
         logger = bosdyn.client.util.get_logger()

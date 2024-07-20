@@ -1,9 +1,18 @@
+'''
+Created  July 19, 2024
+Air Force Research Lab CAMS Labratory
+@author: Sagar Shah and Dr. Mike Chapman
+'''
+
+# Copyright (c) Air Force Research Lab 2024.  All rights reserved.
+
 import argparse
 import os
 import sys
 import time
 
 import google.protobuf.wrappers_pb2
+from RibbonCutwoKnifeFinal import *
 
 import bosdyn.api.mission
 import bosdyn.api.power_pb2 as PowerServiceProto
@@ -22,25 +31,21 @@ from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient,
 from bosdyn.client.robot_state import RobotStateClient
 
 
-def main_auto(parser, args, robot, lease_client, robot_state_client):
+def main_auto(parser, args, robot, robot_state_client, body_lease, command_client, lease_client):
     subparsers = parser.add_subparsers(dest='mission_type', help='Mission type')
     subparsers.required = False
     
     args.mission_type = 'autowalk'
 
     path_following_mode = map_pb2.Edge.Annotations.PATH_MODE_UNKNOWN
-
-    # # In strict mode, disable alternate waypoints and directed exploration
+    
+    # In strict mode, disable alternate waypoints and directed exploration
     # if args.strict_mode:
     #     args.disable_alternate_route_finding = True
     #     args.disable_directed_exploration = True
     #     path_following_mode = map_pb2.Edge.Annotations.PATH_MODE_STRICT
     #     print('[ STRICT MODE ENABLED: Alternate waypoints and directed exploration disabled ]')
-
-    mission_client, graph_nav_client = init_clients(
-    robot, mission_file, walk_directory, do_map_load, args.disable_alternate_route_finding,
-    args.upload_timeout)
-
+    
     if args.mission_type == 'autowalk':
         do_map_load = True
         fail_on_question = True
@@ -50,21 +55,27 @@ def main_auto(parser, args, robot, lease_client, robot_state_client):
             do_localization = True
         walk_directory = args.walk_directory
         mission_file = f'{walk_directory}/missions/{args.walk_filename}'
-
+    
         print(
             f'[ REPLAYING AUTOWALK MISSION {mission_file} : WALK DIRECTORY {walk_directory} : HOSTNAME {args.hostname} ]'
         )
-
-    if robot.is_estopped():
-        robot.logger.fatal(
-            'Robot is estopped. Please use an external E-Stop client, such as the estop SDK example, to configure E-Stop.'
-        )
-        sys.exit(1)
+    
 
     # Check if mission_file exists.
     if not os.path.isfile(mission_file):
         robot.logger.fatal(f'Unable to find mission file: {mission_file}.')
         sys.exit(1)
+    
+    # Acquire robot lease
+    robot.logger.info('Acquiring lease...')
+
+    print(walk_directory)
+    print(mission_file)
+    print(do_map_load)
+    # Initialize other clients
+    mission_client, graph_nav_client = init_clients(
+        robot, mission_file, walk_directory, do_map_load, args.disable_alternate_route_finding,
+        args.upload_timeout)
 
     # Localize robot
     localization_error = False
@@ -88,9 +99,11 @@ def main_auto(parser, args, robot, lease_client, robot_state_client):
                         path_following_mode)
         else:
             repeat_mission(robot, mission_client, lease_client, args.duration, fail_on_question,
-                            args.mission_timeout, args.disable_directed_exploration,
-                            path_following_mode)
+                           args.mission_timeout, args.disable_directed_exploration,
+                           path_following_mode)
+    print("Finished Autowalk; starting ribbon cutting algorithm")
 
+    main_ribbon(args, robot, command_client, robot_state_client)
 
 def init_robot(hostname):
     """Initialize robot object"""
@@ -208,7 +221,7 @@ def upload_graph_and_snapshots(robot, client, path, disable_alternate_route_find
         if len(edge.snapshot_id) == 0:
             continue
         snapshot_filename = os.path.join(path, 'edge_snapshots', edge.snapshot_id)
-        robot.logger.info(f'Loading edge snapshot from [snapshot_filename]')
+        robot.logger.info(f'Loading edge snapshot from {snapshot_filename}')
 
         with open(snapshot_filename, 'rb') as snapshot_file:
             edge_snapshot = map_pb2.EdgeSnapshot()
@@ -352,5 +365,3 @@ def repeat_mission(robot, mission_client, lease_client, total_time, fail_on_ques
             break
 
     return mission_success
-
-
