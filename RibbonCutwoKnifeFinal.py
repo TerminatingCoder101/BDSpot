@@ -19,8 +19,10 @@ import bosdyn.client.lease
 import bosdyn.client.util
 from google.protobuf import wrappers_pb2
 from bosdyn.api import estop_pb2, geometry_pb2, image_pb2, manipulation_api_pb2
+from bosdyn.api.spot import robot_command_pb2
+from bosdyn.geometry import EulerZXY
 from bosdyn.client.estop import EstopClient
-from bosdyn.client.frame_helpers import VISION_FRAME_NAME, get_vision_tform_body, math_helpers
+from bosdyn.client.frame_helpers import VISION_FRAME_NAME, BODY_FRAME_NAME,get_vision_tform_body, math_helpers
 from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot_command import RobotCommandClient, RobotCommandBuilder, blocking_stand, block_until_arm_arrives
@@ -138,27 +140,32 @@ def arm_object_grasp(config, robot, command_client, robot_state_client):
 
     #     time.sleep(0.25)
 
-    # Optionally populate the offset distance parameter.
-    if config.distance is None:
-        offset_distance = None
-    else:
-        offset_distance = wrappers_pb2.FloatValue(value=config.distance)
+        # Transform target point to the robot's body frame
+        
+    vision_tform_body = get_vision_tform_body(robot_state_client)
+    target_x = x_coord - 0.15
+    target_y = y_coord - 0.15
+    target_point = vision_tform_body.transform_point(target_x, target_y, 0.0)
 
-    # Build the proto
-    walk_to = manipulation_api_pb2.WalkToObjectInImage(
-        pixel_xy=pick_vec, transforms_snapshot_for_camera=image.shot.transforms_snapshot,
-        frame_name_image_sensor=image.shot.frame_name_image_sensor,
-        camera_model=image.source.pinhole, offset_distance=offset_distance)
+    # Define the end-effector pose
+    end_effector_pose = robot_command_pb2.SE3TrajectoryPoint()
+    end_effector_pose.position.x = target_point[0]
+    end_effector_pose.position.y = target_point[1]
+    end_effector_pose.position.z = 1 
+    end_effector_pose.rotation = EulerZXY(0, 0, 0)  # No rotation
 
-    # Ask the robot to pick up the object
-    walk_to_request = manipulation_api_pb2.ManipulationApiRequest(
-        walk_to_object_in_image=walk_to)
+    # Create and send the arm command
+    arm_command=robot_command_pb2.ArmCommand.Request(
+        arm_cartesian_command=robot_command_pb2.ArmCartesianCommand.Request(
+            root_frame_name=BODY_FRAME_NAME,
+            pose_trajectory_in_task=robot_command_pb2.SE3Trajectory(points=[end_effector_pose]),
+        )
+    )
 
-    # Send the request
     cmd_response = manipulation_api_client.manipulation_api_command(
-        manipulation_api_request=walk_to_request)
+        manipulation_api_request=arm_command)
+    
 
-    # Get feedback from the robot
     while True:
         time.sleep(0.25)
         feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
@@ -173,6 +180,7 @@ def arm_object_grasp(config, robot, command_client, robot_state_client):
 
         if response.current_state == manipulation_api_pb2.MANIP_STATE_DONE:
             break
+
 
 
     robot.logger.info('Finished grasp.')
