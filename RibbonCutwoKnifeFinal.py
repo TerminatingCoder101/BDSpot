@@ -17,6 +17,7 @@ import bosdyn.client
 import bosdyn.client.estop
 import bosdyn.client.lease
 import bosdyn.client.util
+from google.protobuf import wrappers_pb2
 from bosdyn.api import estop_pb2, geometry_pb2, image_pb2, manipulation_api_pb2
 from bosdyn.client.estop import EstopClient
 from bosdyn.client.frame_helpers import VISION_FRAME_NAME, get_vision_tform_body, math_helpers
@@ -103,24 +104,63 @@ def arm_object_grasp(config, robot, command_client, robot_state_client):
 
     pick_vec = geometry_pb2.Vec2(x= x_coord, y= y_coord)
 
+    # # Build the proto
+    # grasp = manipulation_api_pb2.PickObjectInImage(
+    #     pixel_xy=pick_vec, transforms_snapshot_for_camera=image.shot.transforms_snapshot,
+    #     frame_name_image_sensor=image.shot.frame_name_image_sensor,
+    #     camera_model=image.source.pinhole)
+
+    # # Optionally add a grasp constraint.  This lets you tell the robot you only want top-down grasps or side-on grasps.
+    # add_grasp_constraint(config, grasp, robot_state_client)
+
+    # # Ask the robot to pick up the object
+    # grasp_request = manipulation_api_pb2.ManipulationApiRequest(pick_object_in_image=grasp)
+
+    # # Send the request
+    # cmd_response = manipulation_api_client.manipulation_api_command(
+    #     manipulation_api_request=grasp_request)
+
+    # # Get feedback from the robot
+    # while True:
+    #     feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
+    #         manipulation_cmd_id=cmd_response.manipulation_cmd_id)
+
+    #     # Send the request
+    #     response = manipulation_api_client.manipulation_api_feedback_command(
+    #         manipulation_api_feedback_request=feedback_request)
+
+    #     print(
+    #         f'Current state: {manipulation_api_pb2.ManipulationFeedbackState.Name(response.current_state)}'
+    #     )
+
+    #     if response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED or response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_FAILED:
+    #         break
+
+    #     time.sleep(0.25)
+
+    # Optionally populate the offset distance parameter.
+    if config.distance is None:
+        offset_distance = None
+    else:
+        offset_distance = wrappers_pb2.FloatValue(value=config.distance)
+
     # Build the proto
-    grasp = manipulation_api_pb2.PickObjectInImage(
+    walk_to = manipulation_api_pb2.WalkToObjectInImage(
         pixel_xy=pick_vec, transforms_snapshot_for_camera=image.shot.transforms_snapshot,
         frame_name_image_sensor=image.shot.frame_name_image_sensor,
-        camera_model=image.source.pinhole)
-
-    # Optionally add a grasp constraint.  This lets you tell the robot you only want top-down grasps or side-on grasps.
-    add_grasp_constraint(config, grasp, robot_state_client)
+        camera_model=image.source.pinhole, offset_distance=offset_distance)
 
     # Ask the robot to pick up the object
-    grasp_request = manipulation_api_pb2.ManipulationApiRequest(pick_object_in_image=grasp)
+    walk_to_request = manipulation_api_pb2.ManipulationApiRequest(
+        walk_to_object_in_image=walk_to)
 
     # Send the request
     cmd_response = manipulation_api_client.manipulation_api_command(
-        manipulation_api_request=grasp_request)
+        manipulation_api_request=walk_to_request)
 
     # Get feedback from the robot
     while True:
+        time.sleep(0.25)
         feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
             manipulation_cmd_id=cmd_response.manipulation_cmd_id)
 
@@ -128,14 +168,12 @@ def arm_object_grasp(config, robot, command_client, robot_state_client):
         response = manipulation_api_client.manipulation_api_feedback_command(
             manipulation_api_feedback_request=feedback_request)
 
-        print(
-            f'Current state: {manipulation_api_pb2.ManipulationFeedbackState.Name(response.current_state)}'
-        )
+        print('Current state: ',
+                manipulation_api_pb2.ManipulationFeedbackState.Name(response.current_state))
 
-        if response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_SUCCEEDED or response.current_state == manipulation_api_pb2.MANIP_STATE_GRASP_FAILED:
+        if response.current_state == manipulation_api_pb2.MANIP_STATE_DONE:
             break
 
-        time.sleep(0.25)
 
     robot.logger.info('Finished grasp.')
 
