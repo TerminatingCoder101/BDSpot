@@ -141,31 +141,29 @@ def arm_object_grasp(config, robot, command_client, robot_state_client):
     #     time.sleep(0.25)
 
         # Transform target point to the robot's body frame
-        
-    vision_tform_body = get_vision_tform_body(robot_state_client)
-    target_x = x_coord - 0.15
-    target_y = y_coord - 0.15
-    target_point = vision_tform_body.transform_point(target_x, target_y, 0.0)
+   
+    distance = 0.2
 
-    # Define the end-effector pose
-    end_effector_pose = robot_command_pb2.SE3TrajectoryPoint()
-    end_effector_pose.position.x = target_point[0]
-    end_effector_pose.position.y = target_point[1]
-    end_effector_pose.position.z = 1 
-    end_effector_pose.rotation = EulerZXY(0, 0, 0)  # No rotation
+    if distance is None:
+        offset_distance = None
+    else:
+        offset_distance = wrappers_pb2.FloatValue(value=distance)
 
-    # Create and send the arm command
-    arm_command=robot_command_pb2.ArmCommand.Request(
-        arm_cartesian_command=robot_command_pb2.ArmCartesianCommand.Request(
-            root_frame_name=BODY_FRAME_NAME,
-            pose_trajectory_in_task=robot_command_pb2.SE3Trajectory(points=[end_effector_pose]),
-        )
-    )
+    # Build the proto
+    walk_to = manipulation_api_pb2.WalkToObjectInImage(
+        pixel_xy=pick_vec, transforms_snapshot_for_camera=image.shot.transforms_snapshot,
+        frame_name_image_sensor=image.shot.frame_name_image_sensor,
+        camera_model=image.source.pinhole, offset_distance=offset_distance)
 
+    # Ask the robot to pick up the object
+    walk_to_request = manipulation_api_pb2.ManipulationApiRequest(
+        walk_to_object_in_image=walk_to)
+
+    # Send the request
     cmd_response = manipulation_api_client.manipulation_api_command(
-        manipulation_api_request=arm_command)
-    
+        manipulation_api_request=walk_to_request)
 
+    # Get feedback from the robot
     while True:
         time.sleep(0.25)
         feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
@@ -180,7 +178,6 @@ def arm_object_grasp(config, robot, command_client, robot_state_client):
 
         if response.current_state == manipulation_api_pb2.MANIP_STATE_DONE:
             break
-
 
 
     robot.logger.info('Finished grasp.')

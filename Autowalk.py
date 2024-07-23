@@ -1,18 +1,10 @@
-'''
-Created  July 19, 2024
-Air Force Research Lab CAMS Labratory
-@author: Sagar Shah and Dr. Mike Chapman
-'''
-
-# Copyright (c) Air Force Research Lab 2024.  All rights reserved.
-
 import argparse
 import os
 import sys
 import time
 
 import google.protobuf.wrappers_pb2
-from RibbonCutwoKnifeFinal import *
+from RibbonCutWKnife import *
 
 import bosdyn.api.mission
 import bosdyn.api.power_pb2 as PowerServiceProto
@@ -103,7 +95,7 @@ def main_auto(parser, args, robot, robot_state_client, body_lease, command_clien
                            path_following_mode)
     print("Finished Autowalk; starting ribbon cutting algorithm")
 
-    main_ribbon(args, robot, command_client, robot_state_client)
+    ribbon_cut(args, robot, command_client, robot_state_client)
 
 def init_robot(hostname):
     """Initialize robot object"""

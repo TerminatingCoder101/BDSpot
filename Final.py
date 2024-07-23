@@ -1,17 +1,9 @@
-'''
-Created  July 19, 2024
-Air Force Research Lab CAMS Labratory
-@author: Sagar Shah and Dr. Mike Chapman
-'''
-
-# Copyright (c) Air Force Research Lab 2024.  All rights reserved.
-
 import argparse
 import sys
 import os
 import time
 
-from RibbonCutwoKnifeFinal import *
+from RibbonCutWKnife import *
 from Autowalk import *
 
 import cv2
@@ -173,7 +165,6 @@ def main(argv):
                 # Stand up and wait for the perception system to stabilize
                 robot.logger.info('Commanding robot to stand...')
                 blocking_stand(command_client, timeout_sec=20)
-                countdown(2)
                 robot.logger.info('Robot standing.')   
             else:
                 print(f'Docked at {dock_id}')
@@ -185,11 +176,11 @@ def main(argv):
             print("Finished autowalk")
             #walk_back(robot, distance, command_client)
             #move_backward(command_client)
-            dx = -0.7
-            relative_move(dx, ODOM_FRAME_NAME, command_client, robot_state_client)
+            #dx = -0.7
+            #relative_move(dx, ODOM_FRAME_NAME, command_client, robot_state_client)
             
             print("Finished cutting")
-    
+            time.sleep(2)
             #### Power off Motors
     
             robot.logger.info('Sitting down and turning off.')
@@ -210,7 +201,7 @@ def main(argv):
 
 if __name__ == '__main__':
 
-    sys.argv = ['Final.py', '--image-sources', 'hand_color_image', '--walk_directory','C:\\Users\\chapmanm\\Downloads\\Ribbon New.walk','--walk_filename','Ribbon New.walk',
+    sys.argv = ['Final.py', '--image-sources', 'hand_color_image', '--walk_directory','C:\\Users\\chapmanm\\Downloads\\Final.walk','--walk_filename','Final.walk',
             '--pixel-format', 'PIXEL_FORMAT_RGB_U8','--force-45-angle-grasp','-r', '192.168.80.3']
 
     print(sys.argv)
