@@ -11,6 +11,7 @@ import time
 
 import google.protobuf.wrappers_pb2
 from RibbonCutWKnife import *
+#from RibbonCutwoKnifeFinal import * ### RUN THIS FOR WITHOUT KNIFE MODE
 
 import bosdyn.api.mission
 import bosdyn.api.power_pb2 as PowerServiceProto
@@ -103,6 +104,7 @@ def main_auto(parser, args, robot, robot_state_client, body_lease, command_clien
     print("Finished Autowalk; starting ribbon cutting algorithm")
 
     ribbon_cut(args, robot, command_client, robot_state_client)
+    #main_ribbon(args, robot, command_client, robot_state_client) ### RUN THIS FOR WITHOUT KNIFE MODE
 
 def init_robot(hostname):
     """Initialize robot object"""
