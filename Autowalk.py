@@ -1,3 +1,9 @@
+'''
+Created  July 19, 2024
+Air Force Research Lab CAMS Labratory
+@author: Sagar Shah and Dr. Mike Chapman
+'''
+
 import argparse
 import os
 import sys
@@ -82,6 +88,7 @@ def main_auto(parser, args, robot, robot_state_client, body_lease, command_clien
             initial_guess_localization=localization, ko_tform_body=None, max_distance=None,
             max_yaw=None,
             fiducial_init=graph_nav_pb2.SetLocalizationRequest.FIDUCIAL_INIT_NEAREST)
+
 
     # Run mission
     if not args.static_mode and not localization_error:

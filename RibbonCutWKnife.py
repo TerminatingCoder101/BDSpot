@@ -1,3 +1,9 @@
+'''
+Created  July 19, 2024
+Air Force Research Lab CAMS Labratory
+@author: Sagar Shah and Dr. Mike Chapman
+'''
+
 import argparse
 import sys
 import time
@@ -10,9 +16,7 @@ import bosdyn.client.lease
 import bosdyn.client.util
 from bosdyn.api import arm_command_pb2, estop_pb2, robot_command_pb2, synchronized_command_pb2
 from bosdyn.client.estop import EstopClient
-from bosdyn.client.robot_command import (RobotCommandBuilder, RobotCommandClient,
-                                         block_until_arm_arrives, blocking_stand)
-from bosdyn.client.robot_state import RobotStateClient
+from bosdyn.client.robot_command import (RobotCommandBuilder, block_until_arm_arrives)
 from bosdyn.util import duration_to_seconds
 
 

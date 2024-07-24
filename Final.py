@@ -1,9 +1,14 @@
+'''
+Created  July 19, 2024
+Air Force Research Lab CAMS Labratory
+@author: Sagar Shah and Dr. Mike Chapman
+'''
+
 import argparse
 import sys
 import os
 import time
 
-from RibbonCutWKnife import *
 from Autowalk import *
 
 import cv2
@@ -63,7 +68,6 @@ def relative_move(dx, frame_name, robot_command_client, robot_state_client, dy=0
         time.sleep(1)
 
     return True
-
     
 
 def main(argv):
