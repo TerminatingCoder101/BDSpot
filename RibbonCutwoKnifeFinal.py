@@ -4,8 +4,6 @@ Air Force Research Lab CAMS Labratory
 @author: Sagar Shah and Dr. Mike Chapman
 '''
 
-# Copyright (c) Air Force Research Lab 2024.  All rights reserved.
-
 import argparse
 import sys
 import time
